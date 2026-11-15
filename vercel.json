@@ -1,0 +1,14 @@
+{
+  "functions": {
+    "api/index.ts": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(dashboard|cards|transactions|payments|upi-apps|settings)(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build & Vite Output
+dist/
+.vite/
+
+# Environment Secrets
+.env
+.env.*
+!.env.example
+
+# Vercel Deployment Directory
+.vercel/
+
+# SQLite Databases & Journals
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# App Storage & Attachments
+storage/attachments/
+
+# Migration & Export Archives
+sqlite-export.json
+*.sqlite-export.json
+ccm_migration.zip
+
+# OS & Editor Files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*

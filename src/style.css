@@ -1,0 +1,930 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+:root{font-family:Inter,Roboto,"Segoe UI",system-ui,-apple-system,BlinkMacSystemFont,sans-serif;color-scheme:dark;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;background:#09090b;color:#f5f5f5;accent-color:#8b5cf6}*{box-sizing:border-box}html{background:#09090b;min-width:320px;overscroll-behavior-y:contain}body{margin:0;min-width:320px;min-height:100dvh;background:#09090b;-webkit-tap-highlight-color:transparent}button,input,select,textarea{font:inherit}button{touch-action:manipulation;cursor:pointer}button:focus-visible{outline:2px solid #a78bfa;outline-offset:2px}input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none;outline-offset:0}input[type=date],input[type=datetime-local],input[type=month],input[type=time]{color-scheme:dark}input[type=checkbox]{accent-color:#8b5cf6}.safe-bottom{padding-bottom:calc(6rem + env(safe-area-inset-bottom))}.bottom-nav{padding-bottom:env(safe-area-inset-bottom)}.sheet-backdrop{background:rgba(0,0,0,.68);backdrop-filter:blur(6px)}.sheet{max-height:94dvh;overflow:auto;border-radius:1.5rem 1.5rem 0 0;padding-bottom:calc(1rem + env(safe-area-inset-bottom));overscroll-behavior:contain}.num{font-variant-numeric:tabular-nums}.scrollbar-hide{scrollbar-width:none}.scrollbar-hide::-webkit-scrollbar{display:none}::selection{background:#6d28d9;color:white}::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:#3f3f46;border-radius:99px}@media(min-width:700px){.sheet{border-radius:1.5rem;max-height:90vh;padding-bottom:1rem}.safe-bottom{padding-bottom:2rem}}
+
+/* User-selectable display density. Keep touch targets accessible in both modes. */
+.density-compact main{padding-top:.65rem}.density-compact main section{scroll-margin-top:5rem}.density-compact .bottom-nav button{min-height:3.25rem}.density-compact .bottom-nav button span{height:1.75rem}.density-compact input:not([type=checkbox]):not([type=file]),.density-compact select,.density-compact textarea{padding-top:.65rem;padding-bottom:.65rem}.density-compact .sheet>div:last-child{padding-top:.8rem}.density-compact .sheet .space-y-4>:not([hidden])~:not([hidden]){margin-top:.75rem}.density-compact .safe-bottom{padding-bottom:calc(5.25rem + env(safe-area-inset-bottom))}.density-comfortable .safe-bottom{padding-bottom:calc(6rem + env(safe-area-inset-bottom))}
+@media(min-width:700px){.density-compact main{padding-top:.85rem}.density-compact .bottom-nav button{min-height:3.5rem}}
+
+.amount-entry-input:focus-visible,.transaction-search-input:focus-visible{outline:none!important;box-shadow:none!important}.density-compact .rounded-3xl{border-radius:1.15rem}.density-compact .rounded-2xl{border-radius:.85rem}.density-compact .bottom-nav button{gap:.15rem}
+
+/* Compact transaction editor: keep actions visible while the form scrolls. */
+.txn-form{padding-bottom:0}
+.txn-actions{position:sticky;bottom:calc(-1rem - env(safe-area-inset-bottom));z-index:12;margin:0 -1rem calc(-1rem - env(safe-area-inset-bottom));padding:.7rem 1rem calc(.7rem + env(safe-area-inset-bottom));background:rgba(9,9,11,.97);backdrop-filter:blur(12px);box-shadow:0 -10px 24px rgba(0,0,0,.28)}
+.compact-date-input{padding-top:.55rem!important;padding-bottom:.55rem!important;font-size:.9rem!important}
+.txn-form .block>span.mb-2,.txn-form label>span.mb-2{margin-bottom:.35rem}
+.txn-form .space-y-3>:not([hidden])~:not([hidden]){margin-top:.65rem}
+@media(min-width:640px){.txn-actions{bottom:-1.25rem;margin-bottom:-1.25rem;padding-bottom:1rem}}
+
+/* Transaction entry uses a dedicated viewport instead of a scrolling dialog. */
+.txn-page{height:100vh;height:100dvh;overflow:hidden;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+.txn-page-form{overflow:hidden;min-height:0;padding-bottom:0}
+.txn-page-actions{box-shadow:0 -8px 18px rgba(9,9,11,.45)}
+.txn-page input[type=date],.txn-page input[type=time]{min-width:0;font-size:.82rem}
+.txn-date-value::-webkit-calendar-picker-indicator,.txn-page input[type=time]::-webkit-calendar-picker-indicator{opacity:.75}
+@media(max-height:680px){.txn-page-form{gap:.45rem;padding-top:.45rem}.txn-page-form>label,.txn-page-form>button{padding-top:.5rem;padding-bottom:.5rem}.txn-page-form>div.rounded-2xl{padding-top:.35rem;padding-bottom:.35rem}.txn-page-form>div.space-y-2>button{padding:.55rem .75rem}.txn-page-form .txn-page-actions{padding-top:.45rem}.txn-page-form .txn-page-actions button{min-height:2.65rem;padding-top:.5rem;padding-bottom:.5rem}.txn-page-form>div.shrink-0 button{min-height:2.5rem;padding-top:.45rem;padding-bottom:.45rem}}
+
+/* Transaction page: center content to the same reading width as the rest of the app. */
+.txn-page-form{width:100%;max-width:48rem}
+.txn-page input[type=date]:focus,.txn-page input[type=date]:focus-visible,
+.txn-page input[type=time]:focus,.txn-page input[type=time]:focus-visible{outline:none!important;box-shadow:none!important;border-color:transparent!important}
+.txn-page label:focus-within input[type=date],.txn-page label:focus-within input[type=time]{outline:none!important;box-shadow:none!important}
+
+
+/* Focus treatment: never draw an outer outline on form controls. The control's
+   own border changes color, while composite controls keep focus on their wrapper. */
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+select:focus,
+select:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+}
+.sheet input:not([type="checkbox"]):not([type="file"]):focus,
+.sheet textarea:focus,
+.sheet select:focus {
+  border-color: #a78bfa;
+}
+/* Inputs embedded in bordered transaction rows must not create a second border. */
+.txn-page label:focus-within input,
+.txn-page label:focus-within textarea,
+.txn-page label:focus-within select {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+
+/* Application-wide light theme. Neutral utility classes are remapped centrally
+   so existing component layouts and spacing remain unchanged. */
+:root[data-theme="light"]{color-scheme:light;background:#f8fafc;color:#0f172a}
+:root[data-theme="light"] body{background:#f8fafc;color:#0f172a}
+:root[data-theme="light"] input[type=date],:root[data-theme="light"] input[type=datetime-local],:root[data-theme="light"] input[type=month],:root[data-theme="light"] input[type=time]{color-scheme:light}
+:root[data-theme="light"] .bg-neutral-950{background-color:#f8fafc!important}
+:root[data-theme="light"] .bg-neutral-900{background-color:#fff!important}
+:root[data-theme="light"] .bg-neutral-900\/80{background-color:rgba(255,255,255,.92)!important}
+:root[data-theme="light"] .bg-neutral-800{background-color:#f1f5f9!important}
+:root[data-theme="light"] .bg-neutral-800\/50{background-color:rgba(241,245,249,.65)!important}
+:root[data-theme="light"] .text-neutral-100{color:#0f172a!important}
+:root[data-theme="light"] .text-neutral-200{color:#1e293b!important}
+:root[data-theme="light"] .text-neutral-300{color:#334155!important}
+:root[data-theme="light"] .text-neutral-400{color:#64748b!important}
+:root[data-theme="light"] .text-neutral-500{color:#64748b!important}
+:root[data-theme="light"] .text-neutral-600{color:#475569!important}
+:root[data-theme="light"] .border-neutral-800,:root[data-theme="light"] .border-neutral-800\/90{border-color:#e2e8f0!important}
+:root[data-theme="light"] .border-neutral-700{border-color:#cbd5e1!important}
+:root[data-theme="light"] .border-neutral-600{border-color:#cbd5e1!important}
+:root[data-theme="light"] .hover\:bg-neutral-800:hover{background-color:#f1f5f9!important}
+:root[data-theme="light"] .hover\:bg-neutral-700:hover{background-color:#e2e8f0!important}
+:root[data-theme="light"] .bg-neutral-950\/70{background-color:rgba(248,250,252,.96)!important}
+:root[data-theme="light"] .sheet{background-color:#fff;color:#0f172a}
+:root[data-theme="light"] .txn-page{background-color:#f8fafc!important;color:#0f172a!important}
+:root[data-theme="light"] .txn-page-actions{background:rgba(248,250,252,.97);box-shadow:0 -8px 18px rgba(15,23,42,.08)}
+:root[data-theme="light"] .txn-actions{background:rgba(248,250,252,.97);box-shadow:0 -10px 24px rgba(15,23,42,.08)}
+:root[data-theme="light"] .sheet-backdrop{background:rgba(15,23,42,.35)}
+:root[data-theme="light"] .txn-date-badge{background:#f1f5f9;color:#1e293b}
+:root[data-theme="dark"] .txn-date-badge{background:#27272a;color:#f4f4f5}
+:root[data-theme="light"] .txn-meta-divider{background:#e2e8f0}
+:root[data-theme="dark"] .txn-meta-divider{background:#3f3f46}
+:root[data-theme="light"] .txn-method-label{background:#e2e8f0;color:#334155}
+:root[data-theme="dark"] .txn-method-label{background:#27272a;color:#d4d4d8}
+:root[data-theme="light"] .txn-row:hover{background:#f1f5f9}
+:root[data-theme="light"] .txn-page input,:root[data-theme="light"] .txn-page textarea,:root[data-theme="light"] .txn-page select{background-color:#fff;color:#0f172a;border-color:#cbd5e1}
+:root[data-theme="light"] .txn-page .bg-neutral-900{background-color:#fff!important}
+:root[data-theme="light"] .txn-page .bg-neutral-950{background-color:#f8fafc!important}
+:root[data-theme="light"] .txn-page .text-neutral-100{color:#0f172a!important}
+:root[data-theme="light"] .txn-page .text-neutral-400,:root[data-theme="light"] .txn-page .text-neutral-500{color:#64748b!important}
+:root[data-theme="light"] .bottom-nav{background:rgba(255,255,255,.96)!important;border-color:#e2e8f0!important}
+:root[data-theme="light"] .bottom-nav button{color:#64748b}
+:root[data-theme="light"] .bottom-nav button[aria-current="page"]{color:#6d28d9}
+
+:root[data-theme="light"] ::-webkit-scrollbar-thumb{background:#cbd5e1}
+
+:root[data-theme="light"] .bg-neutral-950\/95{background-color:rgba(248,250,252,.95)!important}
+:root[data-theme="light"] .bg-neutral-900\/90{background-color:rgba(255,255,255,.95)!important}
+:root[data-theme="light"] .bg-neutral-800\/80{background-color:rgba(241,245,249,.9)!important}
+:root[data-theme="light"] .border-neutral-900{border-color:#e2e8f0!important}
+:root[data-theme="light"] .text-neutral-50{color:#0f172a!important}
+:root[data-theme="light"] .placeholder\:text-neutral-500::placeholder{color:#94a3b8!important}
+:root[data-theme="light"] .sheet input,:root[data-theme="light"] .sheet select,:root[data-theme="light"] .sheet textarea{background-color:#fff;color:#0f172a;border-color:#cbd5e1}
+:root[data-theme="light"] .sheet .bg-neutral-800{background-color:#f1f5f9!important}
+:root[data-theme="light"] .sheet .bg-neutral-900{background-color:#fff!important}
+
+
+/* Light-theme coverage fixes: map every neutral utility variant used by the
+   dashboard and card tiles. This prevents dark translucent surfaces leaking
+   through in light mode while leaving the dark theme unchanged. */
+:root[data-theme="light"] .bg-neutral-700{background-color:#e2e8f0!important}
+:root[data-theme="light"] .bg-neutral-800\/60{background-color:rgba(241,245,249,.92)!important}
+:root[data-theme="light"] .bg-neutral-800\/85{background-color:#e2e8f0!important}
+:root[data-theme="light"] .bg-neutral-900\/60{background-color:rgba(255,255,255,.96)!important}
+:root[data-theme="light"] .border-neutral-800\/80{border-color:#e2e8f0!important}
+:root[data-theme="light"] .text-neutral-700{color:#334155!important}
+
+/* Keep light-theme dashboard cards readable on mobile and desktop. */
+:root[data-theme="light"] .bg-neutral-900\/60,
+:root[data-theme="light"] .bg-neutral-800\/60,
+:root[data-theme="light"] .bg-neutral-800\/85{color:#0f172a}
+
+
+/* Mobile viewport and theme contrast corrections from device screenshot review. */
+/* Use the dynamic viewport: 100svh remains tied to the browser's smallest
+   viewport and can leave a gap when Chrome hides its address/navigation bars. */
+.txn-page{height:100vh;height:100dvh;min-height:0;bottom:0}
+@supports (height: 100dvh){
+  .txn-page{height:100dvh}
+}
+/* The transaction editor is a full-screen flow; its underlying app navigation
+   is unmounted while it is open, so it cannot peek through during viewport changes. */
+
+/* Preserve the primary action's white label in light mode; secondary buttons
+   continue to use the neutral text utility mapped by the theme. */
+:root[data-theme="light"] .txn-page-actions button.bg-violet-600{color:#fff!important}
+
+/* Selected density option must retain readable contrast on a pale lavender fill. */
+:root[data-theme="light"] .density-option.text-violet-200{
+  color:#5b21b6!important;
+  background-color:#f3e8ff!important;
+  border-color:#8b5cf6!important;
+}
+
+
+/* Improve violet icon contrast in light mode without changing card geometry
+   or the established dark-theme palette. */
+:root[data-theme="light"] .budget-icon {
+  background-color: #ede9fe !important;
+  color: #6d28d9 !important;
+}
+:root[data-theme="light"] .monthly-overview-icon {
+  color: #7c3aed !important;
+}
+
+
+/* Transaction-detail destructive action: clear, enabled-looking contrast
+   in light mode while retaining the existing dark-mode treatment. */
+:root[data-theme="light"] .txn-delete-button {
+  background-color: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #dc2626 !important;
+}
+:root[data-theme="light"] .txn-delete-button:hover {
+  background-color: #fee2e2 !important;
+  border-color: #fca5a5 !important;
+  color: #b91c1c !important;
+}
+:root[data-theme="light"] .txn-delete-button:active {
+  background-color: #fecaca !important;
+}
+
+
+/* Subtle zebra striping for transaction rows.
+   stripeIndex resets for each date group; no transaction behavior is changed. */
+:root .txn-row.txn-row-odd {
+  background-color: #171717;
+}
+:root .txn-row.txn-row-even {
+  background-color: #202020;
+}
+:root .txn-row.txn-row-odd:hover,
+:root .txn-row.txn-row-even:hover {
+  background-color: #292929;
+}
+:root .txn-row.txn-row-odd:active,
+:root .txn-row.txn-row-even:active {
+  background-color: #303030;
+}
+:root[data-theme="light"] .txn-row.txn-row-odd {
+  background-color: #ffffff;
+}
+:root[data-theme="light"] .txn-row.txn-row-even {
+  background-color: #f8fafc;
+}
+:root[data-theme="light"] .txn-row.txn-row-odd:hover,
+:root[data-theme="light"] .txn-row.txn-row-even:hover {
+  background-color: #f1f5f9;
+}
+:root[data-theme="light"] .txn-row.txn-row-odd:active,
+:root[data-theme="light"] .txn-row.txn-row-even:active {
+  background-color: #e2e8f0;
+}
+
+
+/* Monthly overview: two full-width, horizontally snapped billing-period cards. */
+.overview-carousel {
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.overview-slide {
+  flex: 0 0 100%;
+  width: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+
+/* Add/Edit Card: keep the complete form visible without making the sheet body scroll. */
+.sheet-no-scroll{height:auto;max-height:94dvh;overflow:hidden;display:flex;flex-direction:column;padding-bottom:calc(.65rem + env(safe-area-inset-bottom))}.sheet-no-scroll>div:first-child{position:relative;flex:none;padding-top:.8rem;padding-bottom:.8rem}.sheet-no-scroll>div:nth-child(2){min-height:0;overflow:hidden;padding:.75rem 1rem}.card-form-content{display:flex;flex-direction:column;gap:.65rem!important}.card-form-content>*{min-width:0}.card-form-content .mb-2{margin-bottom:.3rem}.card-form-content input:not([type=checkbox]),.card-form-content button{min-height:2.65rem;padding-top:.55rem;padding-bottom:.55rem}.card-form-content .rounded-2xl.bg-neutral-900{padding:.55rem .75rem}.card-form-sheet{border-radius:1.5rem 1.5rem 0 0}
+@media(max-height:760px){.sheet-no-scroll>div:nth-child(2){padding:.55rem .85rem}.card-form-content{gap:.45rem!important}.card-form-content input:not([type=checkbox]),.card-form-content button{min-height:2.4rem;padding-top:.4rem;padding-bottom:.4rem}.card-form-content .mb-2{margin-bottom:.2rem}.card-form-content .rounded-2xl.bg-neutral-900{font-size:.68rem;line-height:1.15rem}}
+@media(min-width:700px){.sheet-no-scroll{max-height:90vh;border-radius:1.5rem;padding-bottom:.65rem}.card-form-sheet{border-radius:1.5rem}}
+
+/* Card editor: use the available mobile viewport instead of shrinking controls
+   to force a short, internally clipped sheet. The page itself can grow on
+   unusually short displays; normal phones show the complete form comfortably. */
+.sheet-no-scroll.card-form-sheet{
+  height:100dvh;
+  max-height:100dvh;
+  min-height:100dvh;
+  overflow-y:auto;
+  overflow-x:hidden;
+  border-radius:0;
+  padding-bottom:calc(1rem + env(safe-area-inset-bottom));
+  overscroll-behavior:contain;
+}
+.sheet-no-scroll.card-form-sheet>div:first-child{
+  position:sticky;
+  top:0;
+  z-index:20;
+  flex:none;
+  padding-top:calc(.85rem + env(safe-area-inset-top));
+  padding-bottom:.85rem;
+}
+.sheet-no-scroll.card-form-sheet>div:nth-child(2){
+  min-height:auto;
+  overflow:visible;
+  padding:1.1rem 1rem calc(1.25rem + env(safe-area-inset-bottom));
+}
+.card-form-content{gap:1rem!important}
+.card-form-content .mb-2{margin-bottom:.45rem}
+.card-form-content input:not([type=checkbox]),
+.card-form-content>label>button{min-height:3.1rem;padding-top:.75rem;padding-bottom:.75rem}
+.card-form-content .rounded-2xl.bg-neutral-900{padding:.8rem .95rem;font-size:.78rem;line-height:1.35rem}
+.card-form-sheet .sheet-card-actions{position:sticky;bottom:0;background:var(--card-form-footer,#09090b);padding:.75rem 0 calc(.5rem + env(safe-area-inset-bottom));}
+@media(min-width:700px){
+ .sheet-no-scroll.card-form-sheet{height:auto;min-height:0;max-height:min(92vh,900px);border-radius:1.5rem;overflow-y:auto}
+ .sheet-no-scroll.card-form-sheet>div:first-child{padding-top:.9rem}
+ .sheet-no-scroll.card-form-sheet>div:nth-child(2){padding:1.25rem 1.5rem}
+}
+
+/* Give card identity marks a deliberate light-theme palette. The previous
+   lavender-on-lavender treatment had insufficient foreground contrast. */
+:root[data-theme="light"] .card-detail-icon{
+  background:#ede9fe!important;
+  color:#5b21b6!important;
+  border:1px solid #ddd6fe;
+}
+:root[data-theme="light"] .card-brand-icon{
+  background:linear-gradient(135deg,#ddd6fe 0%,#ede9fe 55%,#e2e8f0 100%)!important;
+  color:#5b21b6!important;
+  border:1px solid #ddd6fe;
+}
+:root[data-theme="light"] .card-brand-icon svg,
+:root[data-theme="light"] .card-detail-icon svg{color:#5b21b6!important;stroke:#5b21b6!important}
+
+/* Dashboard surfaces should look intentionally designed for light mode rather
+   than retaining charcoal card/tile styling from dark mode. */
+:root[data-theme="light"] main section.rounded-3xl,
+:root[data-theme="light"] main .rounded-3xl.border{
+  border-color:#e2e8f0!important;
+}
+:root[data-theme="light"] main .bg-neutral-900\/60,
+:root[data-theme="light"] main .bg-neutral-900\/70,
+:root[data-theme="light"] main .bg-neutral-950\/70{
+  background-color:#fff!important;
+}
+:root[data-theme="light"] main .bg-neutral-800\/85,
+:root[data-theme="light"] main .bg-neutral-800\/80,
+:root[data-theme="light"] main .bg-neutral-800\/70{
+  background-color:#f1f5f9!important;
+}
+:root[data-theme="light"] main .bg-neutral-800\/85 .text-neutral-400,
+:root[data-theme="light"] main .bg-neutral-800\/80 .text-neutral-400{
+  color:#64748b!important;
+}
+:root[data-theme="light"] main .bg-neutral-800\/85 .font-bold,
+:root[data-theme="light"] main .bg-neutral-800\/80 .font-bold{
+  color:#0f172a!important;
+}
+:root[data-theme="light"] main .border-neutral-800\/90{border-color:#e2e8f0!important}
+:root[data-theme="light"] .card-form-sheet{--card-form-footer:#fff}
+:root[data-theme="light"] .card-form-sheet .bg-neutral-900{background:#f8fafc!important}
+:root[data-theme="light"] .card-form-sheet input:not([type=checkbox]),
+:root[data-theme="light"] .card-form-sheet select,
+:root[data-theme="light"] .card-form-sheet textarea{
+  background:#fff!important;color:#0f172a!important;border-color:#cbd5e1!important;
+}
+:root[data-theme="light"] .card-form-sheet input::placeholder{color:#94a3b8!important}
+
+/* Final responsive header and modal layout corrections. */
+.app-header-status{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;line-height:1.25;}
+.sheet-bottom-backdrop{align-items:flex-end!important;padding:0!important;}
+.sheet-bottom-sheet{width:100%;max-width:none!important;max-height:min(82dvh,680px);margin:0!important;overflow-y:auto;overflow-x:hidden;border-radius:1.5rem 1.5rem 0 0!important;padding-bottom:calc(1rem + env(safe-area-inset-bottom))!important;overscroll-behavior:contain;}
+.sheet-bottom-sheet>div:first-child{position:sticky;top:0;z-index:5;}
+@media(min-width:700px){.sheet-bottom-backdrop{align-items:flex-end!important;padding:0!important}.sheet-bottom-sheet{max-width:34rem!important;max-height:min(75dvh,620px);margin:0 auto!important;border-radius:1.5rem 1.5rem 0 0!important;}}
+/* Card editor deliberately uses a full-height page on phones. Its content may
+   scroll as one page on short viewports; fields are never clipped or squeezed. */
+.sheet-no-scroll.card-form-sheet{height:100dvh;min-height:100dvh;max-height:100dvh;overflow-y:auto;overflow-x:hidden;border-radius:0;padding-bottom:env(safe-area-inset-bottom);}
+.sheet-no-scroll.card-form-sheet>div:first-child{position:sticky;top:0;z-index:20;flex:none;padding-top:calc(.75rem + env(safe-area-inset-top));padding-bottom:.75rem;}
+.sheet-no-scroll.card-form-sheet>div:nth-child(2){min-height:0;overflow:visible;padding:1rem 1rem calc(1.25rem + env(safe-area-inset-bottom));}
+.card-form-content{display:flex;flex-direction:column;gap:.85rem!important;}
+.card-form-content .mb-2{margin-bottom:.35rem;}
+.card-form-content input:not([type=checkbox]),.card-form-content>label>button{min-height:3rem;padding-top:.65rem;padding-bottom:.65rem;}
+.card-form-content .rounded-2xl.bg-neutral-900{padding:.75rem .9rem;font-size:.78rem;line-height:1.3rem;}
+@media(max-height:650px){.card-form-content{gap:.7rem!important}.sheet-no-scroll.card-form-sheet>div:nth-child(2){padding-top:.75rem}}
+@media(min-width:700px){.sheet-no-scroll.card-form-sheet{height:auto;min-height:0;max-height:min(92vh,900px);overflow-y:auto;border-radius:1.5rem}.sheet-no-scroll.card-form-sheet>div:first-child{padding-top:.9rem}.sheet-no-scroll.card-form-sheet>div:nth-child(2){padding:1.25rem 1.5rem}}
+:root[data-theme="light"] .app-header-status{color:#64748b!important}
+:root[data-theme="light"] .sheet-bottom-sheet{background:#fff!important;color:#0f172a!important}
+
+
+/* FINAL CARD FORM LAYOUT: keep the entire form stationary on normal phone
+   viewports. The previous accumulated rules re-enabled overflow-y:auto, which
+   caused the visible scrollbar and allowed the form to open at a stale scroll
+   offset. */
+.sheet-no-scroll.card-form-sheet{
+  box-sizing:border-box;
+  display:flex;
+  flex-direction:column;
+  height:100dvh;
+  min-height:100dvh;
+  max-height:100dvh;
+  overflow:hidden!important;
+  overscroll-behavior:none;
+  border-radius:0;
+  padding:0 0 env(safe-area-inset-bottom);
+}
+.sheet-no-scroll.card-form-sheet>div:first-child{
+  position:relative;
+  top:auto;
+  z-index:2;
+  flex:0 0 auto;
+  padding:calc(.55rem + env(safe-area-inset-top)) 1rem .65rem;
+}
+.sheet-no-scroll.card-form-sheet>div:nth-child(2){
+  box-sizing:border-box;
+  display:flex;
+  flex:1 1 auto;
+  flex-direction:column;
+  min-height:0;
+  overflow:hidden!important;
+  padding:.55rem 1rem .65rem;
+}
+.sheet-no-scroll.card-form-sheet .card-form-content{
+  display:flex;
+  flex:1 1 auto;
+  flex-direction:column;
+  justify-content:space-between;
+  min-height:0;
+  gap:.35rem!important;
+}
+.sheet-no-scroll.card-form-sheet .card-form-content>*{
+  flex:0 0 auto;
+  min-width:0;
+}
+.sheet-no-scroll.card-form-sheet .card-form-content .mb-2{
+  margin-bottom:.2rem!important;
+}
+.sheet-no-scroll.card-form-sheet .card-form-content input:not([type=checkbox]),
+.sheet-no-scroll.card-form-sheet .card-form-content>label>button{
+  min-height:2.7rem;
+  padding-top:.5rem;
+  padding-bottom:.5rem;
+}
+.sheet-no-scroll.card-form-sheet .card-form-content .rounded-2xl.bg-neutral-900{
+  padding:.55rem .8rem;
+  font-size:.72rem;
+  line-height:1.15rem;
+}
+.sheet-no-scroll.card-form-sheet .card-form-content .sheet-card-actions{
+  flex:0 0 auto;
+  margin-top:.1rem;
+  padding:.35rem 0 .2rem;
+}
+@media(max-height:760px){
+  .sheet-no-scroll.card-form-sheet>div:first-child{
+    padding-top:calc(.35rem + env(safe-area-inset-top));
+    padding-bottom:.4rem;
+  }
+  .sheet-no-scroll.card-form-sheet>div:nth-child(2){padding-top:.35rem;padding-bottom:.35rem}
+  .sheet-no-scroll.card-form-sheet .card-form-content{gap:.2rem!important}
+  .sheet-no-scroll.card-form-sheet .card-form-content input:not([type=checkbox]),
+  .sheet-no-scroll.card-form-sheet .card-form-content>label>button{min-height:2.5rem;padding-top:.35rem;padding-bottom:.35rem}
+}
+@media(min-width:700px){
+  .sheet-no-scroll.card-form-sheet{
+    height:auto;
+    min-height:0;
+    max-height:min(92vh,900px);
+    overflow:visible!important;
+    border-radius:1.5rem;
+    padding:0;
+  }
+  .sheet-no-scroll.card-form-sheet>div:first-child{padding:.9rem 1.5rem}
+  .sheet-no-scroll.card-form-sheet>div:nth-child(2){
+    display:block;
+    flex:none;
+    overflow:visible!important;
+    padding:1rem 1.5rem 1.25rem;
+  }
+  .sheet-no-scroll.card-form-sheet .card-form-content{
+    display:flex;
+    gap:.85rem!important;
+  }
+}
+
+/* FINAL CARD FORM HEIGHT BEHAVIOR
+   Keep the original control typography and dimensions. The sheet uses its
+   natural content height when it fits, and the available viewport height when
+   it needs more room. The form itself never becomes a scroll container. */
+.sheet-no-scroll.card-form-sheet{
+  box-sizing:border-box;
+  display:flex;
+  flex-direction:column;
+  width:100%;
+  height:auto;
+  min-height:0;
+  max-height:100dvh;
+  overflow:hidden!important;
+  border-radius:1.25rem 1.25rem 0 0;
+  padding:0 0 env(safe-area-inset-bottom);
+}
+.sheet-no-scroll.card-form-sheet>div:first-child{
+  position:relative;
+  top:auto;
+  z-index:2;
+  flex:0 0 auto;
+  padding:.85rem 1rem;
+}
+.sheet-no-scroll.card-form-sheet>div:nth-child(2){
+  display:block;
+  flex:0 1 auto;
+  min-height:0;
+  overflow:hidden!important;
+  padding:1rem;
+}
+.sheet-no-scroll.card-form-sheet .card-form-content{
+  display:flex;
+  flex:0 0 auto;
+  flex-direction:column;
+  justify-content:flex-start;
+  gap:.85rem!important;
+  min-height:0;
+}
+.sheet-no-scroll.card-form-sheet .card-form-content>*{flex:0 0 auto;min-width:0}
+.sheet-no-scroll.card-form-sheet .card-form-content .mb-2{margin-bottom:.5rem!important}
+.sheet-no-scroll.card-form-sheet .card-form-content input:not([type=checkbox]),
+.sheet-no-scroll.card-form-sheet .card-form-content>label>button{
+  min-height:unset;
+  padding-top:.75rem;
+  padding-bottom:.75rem;
+}
+.sheet-no-scroll.card-form-sheet .card-form-content .rounded-2xl.bg-neutral-900{
+  padding:.75rem;
+  font-size:inherit;
+  line-height:inherit;
+}
+.sheet-no-scroll.card-form-sheet .card-form-content .sheet-card-actions{
+  position:static;
+  flex:0 0 auto;
+  margin-top:0;
+  padding:.25rem 0 0;
+}
+@media(max-height:760px){
+  .sheet-no-scroll.card-form-sheet{
+    height:100dvh;
+    max-height:100dvh;
+    border-radius:0;
+  }
+  .sheet-no-scroll.card-form-sheet>div:first-child{padding-top:calc(.65rem + env(safe-area-inset-top));padding-bottom:.65rem}
+  .sheet-no-scroll.card-form-sheet>div:nth-child(2){flex:1 1 auto;padding:.65rem 1rem calc(.65rem + env(safe-area-inset-bottom))}
+}
+@media(min-width:700px){
+  .sheet-no-scroll.card-form-sheet{
+    width:min(100%,42rem);
+    height:auto;
+    max-height:calc(100dvh - 2rem);
+    border-radius:1.5rem;
+  }
+  .sheet-no-scroll.card-form-sheet>div:first-child{padding:.9rem 1.5rem}
+  .sheet-no-scroll.card-form-sheet>div:nth-child(2){flex:0 1 auto;padding:1rem 1.5rem 1.25rem}
+}
+
+/* Route-based transaction forms are normal document content, not modal overlays. */
+.txn-page-route{height:auto!important;min-height:0!important;overflow:visible!important;padding-left:0!important;padding-right:0!important}
+.txn-page-route .txn-page-form{min-height:0;overflow:visible;padding-bottom:1rem}
+.txn-page-route .txn-page-actions{position:sticky;bottom:0;z-index:5}
+
+/* Focused mobile compaction for Add/Edit Transaction pages only.
+   Typography is intentionally unchanged; only control padding and gaps are reduced. */
+.txn-page[role="region"] {
+  min-height: 0 !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+.txn-page[role="region"] > header {
+  border: 0 !important;
+  padding-top: .25rem !important;
+  padding-bottom: .25rem !important;
+}
+.txn-page[role="region"] .txn-page-form {
+  gap: .45rem !important;
+  padding-top: .25rem !important;
+  padding-bottom: .25rem !important;
+}
+.txn-page[role="region"] .txn-page-form > div.rounded-2xl,
+.txn-page[role="region"] .txn-page-form > label,
+.txn-page[role="region"] .txn-page-form > button {
+  padding-top: .35rem !important;
+  padding-bottom: .35rem !important;
+}
+.txn-page[role="region"] .txn-page-form > div.grid > label,
+.txn-page[role="region"] .txn-page-form > div.grid > button {
+  padding-top: .4rem !important;
+  padding-bottom: .4rem !important;
+}
+.txn-page[role="region"] .txn-page-actions {
+  border: 0 !important;
+  margin-top: .2rem !important;
+  padding-top: .2rem !important;
+  padding-bottom: max(.35rem, env(safe-area-inset-bottom)) !important;
+  position: sticky;
+  bottom: 0;
+  background: var(--page-bg, #09090b);
+}
+.txn-page[role="region"] .txn-page-actions button {
+  min-height: 2.5rem;
+  padding-top: .35rem;
+  padding-bottom: .35rem;
+}
+@media (max-height: 780px) {
+  .txn-page[role="region"] .txn-page-form { gap: .3rem !important; }
+  .txn-page[role="region"] .txn-page-actions { margin-top: .1rem !important; }
+}
+
+
+/* URL-driven modal transition: native bottom-sheet motion on phones and a
+   restrained scale/fade transition on larger screens. */
+@keyframes route-modal-enter {
+  from { opacity: 0; transform: translate3d(0, 24px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@media (min-width: 640px) {
+  @keyframes route-modal-enter {
+    from { opacity: 0; transform: translate3d(0, 10px, 0) scale(.985); }
+    to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  }
+}
+.route-modal-surface {
+  animation: route-modal-enter 220ms cubic-bezier(.2,.8,.2,1) both;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-modal-surface { animation: none; }
+}
+
+
+/* Unified URL-driven CRUD modal presentation. Mobile uses a bottom sheet;
+   desktop uses a centered dialog. The modal shell itself does not scroll. */
+.route-modal-backdrop{align-items:flex-end;padding:0;background:rgba(0,0,0,.66);backdrop-filter:blur(7px)}
+.route-modal-surface{display:flex;flex-direction:column;width:100%;max-width:42rem;height:auto;max-height:calc(100dvh - env(safe-area-inset-top));min-height:0;overflow:hidden;border-radius:1.5rem 1.5rem 0 0;overscroll-behavior:contain}
+.route-modal-surface>*{min-width:0}
+.route-modal-surface .txn-page{width:100%;height:auto;min-height:0;max-height:inherit;overflow:hidden;border-radius:inherit}
+.route-modal-surface .txn-page-form{flex:0 1 auto;min-height:0;overflow:hidden}
+.route-modal-surface .txn-modal-header{flex:none}
+.route-modal-surface .txn-page-actions{flex:none}
+@media(min-width:700px){
+  .route-modal-backdrop{align-items:center;padding:1.25rem}
+  .route-modal-surface{width:min(100%,42rem);max-height:min(90dvh,850px);border-radius:1.5rem}
+  .route-modal-surface .txn-page{height:auto;max-height:inherit}
+}
+
+/* The transaction entry controls share one touch target height and one rhythm.
+   Their inner typography and icon alignment remain specific to each control. */
+.txn-page-form{gap:.55rem!important;padding-top:.65rem!important}
+.txn-page-form>.rounded-2xl:has(.amount-entry-input),
+.txn-page-form>label:has(>svg),
+.txn-page-form>.grid.grid-cols-2>label,
+.txn-page-form>.space-y-2>button,
+.txn-page-form>button:not(.txn-page-actions button){min-height:4rem;height:4rem}
+.txn-page-form>.rounded-2xl:has(.amount-entry-input){display:flex;align-items:center;padding-top:.5rem;padding-bottom:.5rem}
+.txn-page-form>label:has(>svg){padding-top:.5rem;padding-bottom:.5rem}
+.txn-page-form>.grid.grid-cols-2>label{padding-top:.5rem;padding-bottom:.5rem}
+.txn-page-form>.space-y-2{display:flex;flex-direction:column;gap:.55rem}
+.txn-page-form>.space-y-2>button{padding-top:.5rem;padding-bottom:.5rem}
+.txn-page-form>button:not(.txn-page-actions button){padding-top:.5rem;padding-bottom:.5rem}
+.txn-page-form .txn-page-actions{padding-top:.35rem}
+.txn-page-form .txn-page-actions button{min-height:3rem}
+/* Focus belongs to the complete composite field, not just the nested input. */
+.txn-page-form .focus-within\:border-violet-500:focus-within{border-color:#8b5cf6!important;box-shadow:0 0 0 1px rgba(139,92,246,.24)}
+:root[data-theme="light"] .txn-page-form .focus-within\:border-violet-500:focus-within{border-color:#7c3aed!important;box-shadow:0 0 0 1.5px rgba(124,58,237,.24)}
+:root[data-theme="light"] .txn-page-form input:focus,
+:root[data-theme="light"] .txn-page-form textarea:focus,
+:root[data-theme="light"] .txn-page-form select:focus{border-color:#7c3aed!important}
+
+/* Detail modals fit their information and action footer without an inner
+   scrollbar on normal phone heights. Compact rows retain readable type. */
+.route-detail-modal{height:auto;max-height:calc(100dvh - env(safe-area-inset-top));min-height:0;gap:.65rem;padding-bottom:calc(.75rem + env(safe-area-inset-bottom));overflow:hidden}
+.route-modal-header{min-height:3.5rem}
+.route-detail-summary{flex:none;padding:1rem!important}
+.route-detail-fields{flex:none}
+.route-detail-fields>div{min-height:2.75rem;padding:.65rem .9rem!important;align-items:center}
+.route-detail-actions{padding:0 .9rem}
+.route-detail-actions button,.route-detail-actions a{min-height:2.75rem}
+@media(max-height:740px){
+  .route-detail-modal{gap:.45rem;padding-bottom:calc(.45rem + env(safe-area-inset-bottom))}
+  .route-detail-summary{padding:.7rem!important}
+  .route-detail-summary .text-3xl{font-size:1.65rem;line-height:2rem}
+  .route-detail-fields>div{min-height:2.45rem;padding:.45rem .75rem!important}
+}
+
+/* Preserve the established destructive button in dark mode; restore a clear,
+   accessible red treatment in light mode (including all interaction states). */
+:root[data-theme="light"] .txn-delete-button{background:#fef2f2!important;border-color:#fca5a5!important;color:#b91c1c!important}
+:root[data-theme="light"] .txn-delete-button:hover{background:#fee2e2!important;border-color:#f87171!important;color:#991b1b!important}
+:root[data-theme="light"] .txn-delete-button:active{background:#fecaca!important;border-color:#ef4444!important;color:#7f1d1d!important}
+:root[data-theme="light"] .txn-delete-button:focus-visible{outline:2px solid #dc2626!important;outline-offset:2px}
+
+/* Semantic budget status colours are theme-aware. Dark mode retains the
+   original pastel palette; light mode uses stronger foreground contrast. */
+:root[data-theme="light"] .budget-usage-status.is-over{color:#dc2626!important}
+:root[data-theme="light"] .budget-usage-status.is-under{color:#059669!important}
+:root[data-theme="light"] .route-modal-surface{background:#fff;color:#0f172a;border-color:#e2e8f0}
+:root[data-theme="light"] .route-modal-header{border-color:#e2e8f0}
+:root[data-theme="light"] .route-modal-backdrop{background:rgba(15,23,42,.38)}
+@media(prefers-reduced-motion:reduce){.route-modal-surface{animation:none!important}}
+.txn-page-form>.space-y-2>button+button{margin-top:0!important}
+:root[data-theme="light"] .budget-usage-status.is-under{color:#047857!important}
+
+/* Screenshot review #1: keep the transaction search strip directly below the
+   measured application header. Opaque surfaces prevent scrolling rows from
+   bleeding through the sticky layer in either theme. */
+.transaction-sticky-search {
+  top: var(--app-header-height, 4.25rem);
+  z-index: 20;
+  background: #09090b;
+  border-bottom-color: #27272a;
+  backdrop-filter: none;
+  isolation: isolate;
+}
+.transaction-month-sticky {
+  top: calc(var(--app-header-height, 4.25rem) + var(--transaction-search-height, 4rem));
+  z-index: 10;
+  background: #09090b;
+  isolation: isolate;
+}
+:root[data-theme="light"] .transaction-sticky-search,
+:root[data-theme="light"] .transaction-month-sticky {
+  background: #f8fafc !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+:root[data-theme="dark"] .transaction-sticky-search,
+:root[data-theme="dark"] .transaction-month-sticky {
+  background: #09090b !important;
+  border-bottom-color: #27272a !important;
+}
+
+/* Screenshot review #2: shared header geometry, predictable field rhythm and
+   clean footer surface. Button dimensions increase slightly without changing
+   their labels, colours or width distribution. */
+.txn-modal-header { min-height: 4.25rem; }
+.txn-page-form { gap: .75rem !important; }
+.txn-page-form > .space-y-2 { gap: .75rem !important; }
+.txn-page-form > .space-y-2 > * { margin-top: 0 !important; }
+.txn-page-form .txn-page-actions {
+  background: transparent !important;
+  box-shadow: none !important;
+  padding-top: .25rem !important;
+}
+.txn-page-form .txn-page-actions button { min-height: 3.25rem !important; }
+:root[data-theme="light"] .txn-page-form .txn-page-actions,
+:root[data-theme="dark"] .txn-page-form .txn-page-actions { background: transparent !important; }
+
+/* Screenshot review #3: the detail body remains edge-to-edge; only the action
+   row receives horizontal inset. */
+.route-detail-actions { padding-left: 1rem !important; padding-right: 1rem !important; }
+
+/* Screenshot review #4: semantic status surfaces use light-theme colours with
+   sufficient contrast; dark-theme declarations remain untouched. */
+:root[data-theme="light"] .statement-status--unpaid { background: #fee2e2 !important; color: #b91c1c !important; }
+:root[data-theme="light"] .statement-status--partial { background: #fef3c7 !important; color: #92400e !important; }
+:root[data-theme="light"] .statement-status--paid { background: #dcfce7 !important; color: #166534 !important; }
+:root[data-theme="light"] .statement-reconciliation--match { background: #dcfce7 !important; color: #166534 !important; }
+:root[data-theme="light"] .statement-reconciliation--difference { background: #fef3c7 !important; color: #92400e !important; }
+:root[data-theme="light"] .billing-cycle-active { color: #6d28d9 !important; }
+
+/* Screenshot review #5: the dashboard action link gets a readable light-theme
+   purple while preserving the existing dark-theme pastel purple. */
+:root[data-theme="light"] .dashboard-view-all { color: #6d28d9 !important; }
+
+/* Screenshot review #6: slightly soften the date text in light mode without
+   reducing its prominence or changing the badge geometry. */
+:root[data-theme="light"] .txn-date-badge { color: #273449 !important; }
+
+
+/* Follow-up screenshot corrections for references #1B, #2A, #2C and #3.
+   Keep the app header fully opaque so scrolling rows cannot show through the
+   narrow boundary above the sticky transaction search strip. */
+[data-app-header] {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  isolation: isolate;
+  background-color: #09090b !important;
+  background-image: none !important;
+}
+:root[data-theme="light"] [data-app-header] {
+  background-color: #f8fafc !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+:root[data-theme="dark"] [data-app-header] {
+  background-color: #09090b !important;
+  border-bottom-color: #27272a !important;
+}
+.transaction-sticky-search {
+  z-index: 40 !important;
+  isolation: isolate;
+  background-clip: padding-box;
+}
+.transaction-month-sticky {
+  z-index: 30 !important;
+}
+
+/* #2A: retain the shared Add Expense / More options header structure and
+   make its bottom divider explicit in both themes. */
+.txn-modal-header {
+  border-bottom: 1px solid #27272a !important;
+}
+:root[data-theme="light"] .txn-modal-header {
+  border-bottom-color: #e2e8f0 !important;
+}
+
+/* #2C: all Add Expense form rows use one consistent 16px vertical rhythm.
+   Tailwind space-y margins are neutralized to avoid doubled spacing. */
+.txn-page-form > .space-y-2 {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 16px !important;
+}
+.txn-page-form > .space-y-2 > * {
+  margin-top: 0 !important;
+}
+
+/* #3: align the summary and detail rows to the same horizontal inset as the
+   Delete/Edit footer buttons. The header remains independently aligned. */
+.route-detail-content {
+  margin-inline: 1rem;
+  min-width: 0;
+}
+.route-detail-actions {
+  padding-inline: 1rem !important;
+}
+@media (max-width: 380px) {
+  .route-detail-content { margin-inline: .75rem; }
+  .route-detail-actions { padding-inline: .75rem !important; }
+}
+
+
+/* #2C follow-up: flatten the card/payment selector wrapper so the Card,
+   Payment method and UPI application controls participate in the same
+   consistent 16px form-row rhythm. */
+.txn-page-form {
+  row-gap: 16px !important;
+}
+.txn-page-form > .space-y-2 {
+  display: contents !important;
+}
+.txn-page-form > .space-y-2 > * {
+  margin: 0 !important;
+}
+
+
+/* Final requested refinements: #3 footer action height and #6 date text tone.
+   Keep badge surfaces, dimensions, layout and all transaction behaviour intact. */
+.route-detail-actions button,
+.route-detail-actions a {
+  min-height: 3.25rem !important;
+}
+:root[data-theme="light"] .txn-date-badge {
+  color: #475569 !important;
+}
+:root[data-theme="dark"] .txn-date-badge {
+  color: #d4d4d8 !important;
+}
+
+
+/* Final screenshot refinements: make the Add Expense header divider
+   consistently visible and give Edit Card footer actions a slightly larger
+   touch target without changing their layout or colour. */
+.txn-modal-header{
+  border-bottom:1px solid #27272a!important;
+  box-shadow:inset 0 -1px 0 #27272a;
+}
+:root[data-theme="light"] .txn-modal-header{
+  border-bottom-color:#e2e8f0!important;
+  box-shadow:inset 0 -1px 0 #e2e8f0;
+}
+.sheet-no-scroll.card-form-sheet .card-form-content .sheet-card-actions button{
+  min-height:3.75rem !important;
+}
+
+/* Floating mobile sheets.
+   Mobile-only presentation: desktop modal layout and sizing are not modified. */
+@media (max-width: 639px) {
+  .sheet-backdrop,
+  .sheet-bottom-backdrop {
+    align-items: flex-end !important;
+    padding:
+      12px
+      max(12px, env(safe-area-inset-right))
+      calc(12px + env(safe-area-inset-bottom))
+      max(12px, env(safe-area-inset-left)) !important;
+  }
+
+  .sheet,
+  .sheet-bottom-sheet {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: none;
+    max-height: calc(
+      100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+    );
+    margin: 0 auto !important;
+    border-radius: 1.5rem !important;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+  }
+
+  .sheet-bottom-sheet {
+    max-height: min(
+      82dvh,
+      680px,
+      calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom))
+    );
+    overflow-y: auto;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* The card form previously forced itself to 100dvh with square corners.
+     On phones it now participates in the same floating panel geometry. */
+  .sheet-no-scroll.card-form-sheet {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    max-height: calc(
+      100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+    );
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    border-radius: 1.5rem !important;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+    overscroll-behavior: contain;
+  }
+
+  .sheet-no-scroll.card-form-sheet > div:first-child {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    flex: 0 0 auto;
+  }
+
+  .sheet-no-scroll.card-form-sheet > div:nth-child(2) {
+    display: block;
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow: visible !important;
+  }
+
+  .sheet-no-scroll.card-form-sheet .card-form-content {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+}
+
+/* Mobile floating-sheet spacing. Keep the existing sheet content, backdrop,
+   and entry animations; desktop presentation remains governed by the rules above. */
+@media (max-width: 699px) {
+  .route-modal-backdrop,
+  .sheet-bottom-backdrop {
+    align-items: flex-end !important;
+    padding: 0 .75rem calc(.75rem + env(safe-area-inset-bottom)) !important;
+  }
+
+  .route-modal-surface {
+    width: 100%;
+    max-height: calc(100dvh - env(safe-area-inset-top) - 1.5rem - env(safe-area-inset-bottom));
+    margin: 0;
+    border-radius: 1.5rem !important;
+  }
+
+  .sheet-bottom-sheet {
+    width: 100%;
+    max-height: min(82dvh, 680px);
+    margin: 0;
+    border-radius: 1.5rem !important;
+  }
+}
