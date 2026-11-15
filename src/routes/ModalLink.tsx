@@ -4,14 +4,15 @@ import type { MouseEvent, ReactNode } from 'react';
 type ModalLinkProps = Omit<LinkProps, 'state'> & {
   children: ReactNode;
   state?: LinkProps['state'];
+  /** Set false to navigate to the destination as a standalone page. Defaults to modal navigation. */
+  modal?: boolean;
 };
 
 /**
- * React Router link for URL-addressable modal destinations.
- * Keeps the first background location when moving between modal routes, so
- * nested modal navigation does not replace the page underneath the overlay.
+ * URL-addressable link that opens over the current route by default.
+ * Set modal={false} when the destination should render as a full page.
  */
-export default function ModalLink({ to, state, onClick, children, ...props }: ModalLinkProps) {
+export default function ModalLink({ to, state, onClick, children, modal = true, ...props }: ModalLinkProps) {
   const location = useLocation();
 
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -23,12 +24,18 @@ export default function ModalLink({ to, state, onClick, children, ...props }: Mo
     ? location.state as Record<string, unknown>
     : {};
   const backgroundLocation = (existingState.backgroundLocation as typeof location | undefined) || location;
+  const navigationState: Record<string, unknown> = {
+    ...existingState,
+    ...(state && typeof state === 'object' ? state as object : {}),
+  };
+  if (modal) navigationState.backgroundLocation = backgroundLocation;
+  else delete navigationState.backgroundLocation;
 
   return (
     <Link
       {...props}
       to={to}
-      state={{ ...existingState, ...(state && typeof state === 'object' ? state as object : {}), backgroundLocation }}
+      state={Object.keys(navigationState).length ? navigationState : null}
       onClick={handleClick}
     >
       {children}
