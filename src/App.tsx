@@ -119,6 +119,8 @@ type Payment = { id:number; card_id:number; card_name:string; amount_minor:numbe
 type AppItem = { id:number; name:string; active:number };
 type Status = { setup_required:boolean; authenticated:boolean; username:string|null; user_id?:number; csrf:string };
 type Tab = 'dashboard'|'transactions'|'settings'|'card'|'payments';
+type TransactionDetailsMode = 'modal' | 'context-aware' | 'full-page';
+type TransactionEditMode = 'modal' | 'full-page';
 type Filters = { month:string; card_id:string; method:string; upi_app_id:string; category:string; q:string; from:string; to:string };
 type BootstrapData = { cards:Card[]; transactions:Txn[]; apps:AppItem[]; dashboard:any; payments:Payment[]; statements:Statement[]; settings:{monthly_budget_minor:number|string;categories?:string[]} };
 
@@ -255,7 +257,16 @@ function AppShell() {
   }, []);
   const navigate = useNavigate();
   const location = useLocation();
-  const backgroundLocation = (location.state as any)?.backgroundLocation as any;
+  const [transactionDetailsMode,setTransactionDetailsMode]=useState<TransactionDetailsMode>(()=>{try{const saved=localStorage.getItem('ccm-transaction-details-mode');return saved==='context-aware'||saved==='full-page'?saved:'modal'}catch{return 'modal'}});
+  const [transactionEditMode,setTransactionEditMode]=useState<TransactionEditMode>(()=>{try{return localStorage.getItem('ccm-transaction-edit-mode')==='full-page'?'full-page':'modal'}catch{return 'modal'}});
+  const explicitBackgroundLocation = (location.state as any)?.backgroundLocation as any;
+  // Direct transaction URLs have no router background. In Always modal mode,
+  // render the transactions list underneath as a predictable fallback.
+  const isDirectTransactionDetails = !explicitBackgroundLocation && /^\/transactions\/\d+$/.test(location.pathname);
+  const backgroundLocation = explicitBackgroundLocation || (transactionDetailsMode === 'modal' && isDirectTransactionDetails
+    ? { ...location, pathname: '/transactions', search: '', hash: '', state: null }
+    : null);
+  const isSyntheticTransactionBackground = !explicitBackgroundLocation && Boolean(backgroundLocation);
   const routeElement = useRoutes([
     { path: '/', element: <Navigate to="/dashboard" replace /> },
     { path: '/dashboard', element: <Suspense fallback={<RouteLoading variant="dashboard" />}><DashboardPage /></Suspense> },
@@ -365,14 +376,17 @@ function AppShell() {
   useEffect(() => {
     if (!backgroundLocation) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') navigate(-1);
+      if (event.key === 'Escape') isSyntheticTransactionBackground ? navigate('/transactions', { replace: true }) : navigate(-1);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [backgroundLocation, navigate]);
+  }, [backgroundLocation, navigate, isSyntheticTransactionBackground]);
 
   const notify=useCallback((message:string,kind:'success'|'error'|'info'='success')=>setToast({message,kind}),[]);
   useEffect(()=>{try{localStorage.setItem('ccm-density',density)}catch{}},[density]);
+  useEffect(()=>{try{localStorage.setItem('ccm-transaction-details-mode',transactionDetailsMode)}catch{}},[transactionDetailsMode]);
+  useEffect(()=>{try{localStorage.setItem('ccm-transaction-edit-mode',transactionEditMode)}catch{}},[transactionEditMode]);
+  useEffect(()=>{if(!filtersOpen)return;const onKeyDown=(event:KeyboardEvent)=>{if(event.key==='Escape')setFiltersOpen(false)};window.addEventListener('keydown',onKeyDown);return()=>window.removeEventListener('keydown',onKeyDown)},[filtersOpen]);
   useEffect(()=>{try{localStorage.setItem('ccm-theme',theme)}catch{};document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme},[theme]);
   useEffect(()=>{if(!toast)return;const timer=window.setTimeout(()=>setToast(null),3500);return()=>window.clearTimeout(timer)},[toast]);
   useEffect(()=>{
@@ -736,11 +750,46 @@ function AppShell() {
     void perform(() => request('upi-apps','DELETE',undefined,{id:String(id)}), 'UPI application deactivated');
   };
 
-  const dashboardViewProps = { Activity, CalendarDays, ChevronDown, ChevronRight, CreditCard, Empty, Link, ModalLink, Plus, TxnRow, activeCards, budgetMinor, budgetMonth, budgetPct, calendarMonthSpend, cards, cardsExpanded, currentSpend, dashboard, dashboardMoney, day, excessPct, fillBudgetPct, followingBudgetSpend, goTab, money, monthLabel, nextBudgetMonth, nextBudgetPct, nextBudgetSpend, nextExcessPct, nextFillBudgetPct, nextMonthUnpaid, overviewIndex, overviewTrackRef, previousBudgetMonth, previousDues, setActiveCard, setCardsExpanded, setCycle, setEditTxn, setOverviewIndex, setSummaryExpanded, summaryExpanded };
-  const transactionsViewProps = { Empty, ModalLink, Plus, Search, SlidersHorizontal, TxnRow, X, cards, day, filterCount, filters, grouped, money, monthLabel, setActiveCard, setEditTxn, setFilters, setFiltersOpen, shownTxns, txns };
-  const cardViewProps = { Button, Check, ChevronDown, CreditCard, Empty, ModalLink, Pencil, Plus, Search, ShieldCheck, TxnRow, Wallet, X, activeCard, cardTxnQuery, currentEnd, currentStart, cycle, cycleSheetOpen, cycleTxns, day, groupedCycleTxns, minorToRupees, money, monthLabel, notify, perform, request, rupeesToMinor, selectedStatement, setActiveCard, setCardTxnQuery, setCycleSheetOpen, setEditTxn, shownCycleTxns };
+  const editTransactionFromMenu = (txn: Txn) => {
+    setEditTxn(txn);
+    const returnTo = `${location.pathname}${location.search}${location.hash}`;
+    navigate(`/transactions/${txn.id}/edit`, transactionEditMode === 'modal'
+      ? { state: { backgroundLocation: location, returnTo } }
+      : { state: { returnTo } });
+  };
+  const deleteTransactionFromMenu = async (txn: Txn) => {
+    if (txn.id <= 0) { notify('This transaction cannot be deleted until it finishes synchronizing.', 'info'); return; }
+    if (!confirm(`Delete “${txn.particular}” (${money(txn.amount_minor)})? This cannot be undone.`)) return;
+    const ownerId = status?.user_id ? String(status.user_id) : '';
+    if (!ownerId) { notify('Account identity is unavailable. Reconnect and sign in before deleting.', 'error'); return; }
+    const previous = txns;
+    const next = previous.filter(item => item.id !== txn.id);
+    try {
+      await enqueueLocalMutation({ ownerId, entity: 'transaction', entityId: String(txn.id), action: 'delete', payload: { id: txn.id } });
+      setTxns(next);
+      setDashboard((current: any) => current ? { ...current, latest: (current.latest || []).filter((item: Txn) => item.id !== txn.id) } : current);
+      void writeBootstrapCache({ version: 1, savedAt: Date.now(), data: { cards, transactions: next, apps, dashboard, payments, statements, settings: { monthly_budget_minor: budgetMinor, categories } } }).catch(() => {});
+      setSyncState(navigator.onLine ? 'pending' : 'offline');
+      notify(navigator.onLine ? 'Transaction deleted locally. Synchronization will continue in the background.' : 'Transaction deleted on this device. It will sync when internet returns.', 'info');
+      if (navigator.onLine) void syncTransactionOutbox(ownerId).catch(error => notify(`Delete is queued; synchronization will retry. ${(error as Error).message}`, 'info'));
+    } catch (error) {
+      notify(`Could not delete transaction: ${(error as Error).message}`, 'error');
+    }
+  };
+  const copyTransactionFromMenu = async (txn: Txn) => {
+    const text = [txn.particular, money(txn.amount_minor), txn.card_name, txn.txn_at, txn.payment_method.toUpperCase(), txn.category || '', txn.notes || ''].filter(Boolean).join(' · ');
+    try { await navigator.clipboard.writeText(text); notify('Transaction details copied.'); }
+    catch { notify('Clipboard access is unavailable in this browser.', 'error'); }
+  };
+  const txnMenuProps = { detailsMode: transactionDetailsMode, onEditTxn: editTransactionFromMenu, onDeleteTxn: deleteTransactionFromMenu, onCopyTxn: copyTransactionFromMenu, onViewTxn: (txn: Txn) => { const openAsModal = transactionDetailsMode === 'modal'; navigate(`/transactions/${txn.id}`, openAsModal ? { state: { backgroundLocation: location } } : undefined); } };
+  const dashboardViewProps = { Activity, CalendarDays, ChevronDown, ChevronRight, CreditCard, Empty, Link, ModalLink, Plus, TxnRow, ...txnMenuProps, activeCards, budgetMinor, budgetMonth, budgetPct, calendarMonthSpend, cards, cardsExpanded, currentSpend, dashboard, dashboardMoney, day, excessPct, fillBudgetPct, followingBudgetSpend, goTab, money, monthLabel, nextBudgetMonth, nextBudgetPct, nextBudgetSpend, nextExcessPct, nextFillBudgetPct, nextMonthUnpaid, overviewIndex, overviewTrackRef, previousBudgetMonth, previousDues, setActiveCard, setCardsExpanded, setCycle, setEditTxn, setOverviewIndex, setSummaryExpanded, summaryExpanded };
+  const transactionsViewProps = { Empty, ModalLink, Plus, Search, SlidersHorizontal, TxnRow, ...txnMenuProps, X, cards, day, filterCount, filters, grouped, money, monthLabel, setActiveCard, setEditTxn, setFilters, setFiltersOpen, shownTxns, txns };
+  const cardViewProps = { Button, Check, ChevronDown, CreditCard, Empty, ModalLink, Pencil, Plus, Search, ShieldCheck, TxnRow, ...txnMenuProps, Wallet, X, activeCard, cardTxnQuery, currentEnd, currentStart, cycle, cycleSheetOpen, cycleTxns, day, groupedCycleTxns, minorToRupees, money, monthLabel, notify, perform, request, rupeesToMinor, selectedStatement, setActiveCard, setCardTxnQuery, setCycleSheetOpen, setEditTxn, shownCycleTxns };
   const paymentsViewProps = { Empty, Metric, ModalLink, Plus, RefreshCw, Trash2, day, deletePaymentOptimistic, money, payments, statements };
-  const settingsViewProps = { Activity, Button, Check, Download, Field, ModalLink, Pencil, Plus, Trash2, Wallet, X, activeCards, apps, budgetEditing, budgetInput, budgetMinor, budgetPct, busy, categories, currentSpend, dashboardMoney, density, doInstall, editingAppId, editingAppName, editingCategory, editingCategoryName, goTab, inputClass, minorToRupees, navigate, newCategory, notify, perform, request, rupeesToMinor, setBudgetEditing, setBudgetInput, setCategories, setDensity, setEditingAppId, setEditingAppName, setEditingCategory, setEditingCategoryName, setNewCategory };
+  const settingsViewProps = { transactionEditMode, setTransactionEditMode, Activity, Button, Check, Download, Field, ModalLink, Pencil, Plus, Trash2, Wallet, X, activeCards, apps, budgetEditing, budgetInput, budgetMinor, budgetPct, busy, categories, currentSpend, dashboardMoney, density, transactionDetailsMode, setTransactionDetailsMode, doInstall, editingAppId, editingAppName, editingCategory, editingCategoryName, goTab, inputClass, minorToRupees, navigate, newCategory, notify, perform, request, rupeesToMinor, setBudgetEditing, setBudgetInput, setCategories, setDensity, setEditingAppId, setEditingAppName, setEditingCategory, setEditingCategoryName, setNewCategory };
+
+  const editRouteMatch = location.pathname.match(/^\/transactions\/(\d+)\/edit$/);
+  const routeEditTxn = editTxn || (editRouteMatch ? txns.find(item => item.id === Number(editRouteMatch[1])) ?? null : null);
 
   const routePages: AppRouteContext['pages'] = {
     dashboard: <DashboardView {...dashboardViewProps} />,
@@ -751,7 +800,7 @@ function AppShell() {
     cardCreate: <CardForm key="new-card" page initial={null} busy={busy} onClose={()=>closeRouteModal('/settings')} onSave={data=>void saveCardOptimistic(data)}/>,
     cardEdit: <CardForm key={editCard?.id ?? 'edit-card-loading'} page initial={editCard} busy={busy} onClose={()=>closeRouteModal(editCard?`/cards/${editCard.id}`:'/settings')} onSave={data=>void saveCardOptimistic(data)}/>,
     transactionCreate: <TxnForm key="new-transaction" page initial={null} cards={activeCards.filter(c=>c.id>0)} apps={apps} categories={categories} defaultCard={activeCard} busy={busy} onClose={()=>closeRouteModal(activeCard?`/cards/${activeCard.id}`:'/transactions')} onSave={saveTransaction}/>,
-    transactionEdit: <TxnForm key={editTxn?.id ?? 'edit-transaction-loading'} page initial={editTxn} cards={activeCards.filter(c=>c.id>0)} apps={apps} categories={categories} defaultCard={activeCard} busy={busy} onClose={()=>closeRouteModal(editTxn?`/transactions/${editTxn.id}`:'/transactions')} onSave={saveTransaction}/>,
+    transactionEdit: <TxnForm key={routeEditTxn?.id ?? 'edit-transaction-loading'} page initial={routeEditTxn} cards={activeCards.filter(c=>c.id>0)} apps={apps} categories={categories} defaultCard={activeCard} busy={busy} onClose={()=>{const returnTo=(location.state as any)?.returnTo; if(backgroundLocation) closeRouteModal('/transactions'); else navigate(typeof returnTo==='string'&&returnTo.startsWith('/')?returnTo:'/transactions')}} onSave={saveTransaction}/>,
     paymentCreate: <PaymentForm key="new-payment" page initial={null} cards={activeCards.filter(c=>c.id>0)} defaultCard={activeCard} busy={busy} onClose={()=>closeRouteModal('/payments')} onSave={data=>void savePaymentOptimistic(data)}/>,
     paymentEdit: <PaymentForm key={editPayment?.id ?? 'edit-payment-loading'} page initial={editPayment} cards={activeCards.filter(c=>c.id>0)} defaultCard={activeCard} busy={busy} onClose={()=>closeRouteModal(editPayment?`/payments/${editPayment.id}`:'/payments')} onSave={data=>void savePaymentOptimistic(data)}/>,
   };
@@ -768,7 +817,7 @@ function AppShell() {
 
       <AppRouteContextProvider value={{pages: routePages, txns, paymentsData: payments, cardsData: cards, dataReady, deletePayment: (payment:Payment)=>void deletePaymentOptimistic(payment), deleteTransaction: (txn:Txn)=>void deleteTransactionOptimistic(txn), deleteCard: (card:Card)=>deleteCardFromRoute(card), appsData: apps, saveUpiApp, deactivateUpiApp} satisfies AppRouteContext}>
         <RouteErrorBoundary key={`route-${location.pathname}`}>{routeElement}</RouteErrorBoundary>
-        {isModalRoute && modalRouteElement && <div className="route-modal-backdrop fixed inset-0 z-[80] flex items-end justify-center overflow-hidden bg-black/65 backdrop-blur-sm sm:items-center sm:p-5" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) navigate(-1); }}>
+        {isModalRoute && modalRouteElement && <div className="route-modal-backdrop fixed inset-0 z-[80] flex items-end justify-center overflow-hidden bg-black/65 backdrop-blur-sm sm:items-center sm:p-5" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) isSyntheticTransactionBackground ? navigate('/transactions', { replace: true }) : navigate(-1); }}>
           <div className="route-modal-surface w-full max-w-2xl max-h-[calc(100dvh-env(safe-area-inset-top))] overflow-hidden rounded-t-[1.75rem] border border-neutral-800 bg-neutral-950 shadow-2xl sm:max-h-[90dvh] sm:rounded-3xl" role="dialog" aria-modal="true" onMouseDown={event => event.stopPropagation()}>
             <RouteErrorBoundary key={`modal-${location.pathname}`}>{modalRouteElement}</RouteErrorBoundary>
           </div>
@@ -788,7 +837,7 @@ function AppShell() {
 
     <nav className="bottom-nav fixed inset-x-0 bottom-0 z-40 border-t border-neutral-800 bg-neutral-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"><div className="mx-auto grid max-w-xl grid-cols-3 px-3 pt-2">{navItems.map(([key,label,icon])=><button key={key} onClick={()=>goTab(key)} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-1 text-[11px] font-semibold ${tab===key?'text-violet-300':'text-neutral-500'}`}><span className={`flex h-8 min-w-14 items-center justify-center rounded-2xl ${tab===key?'bg-violet-500/15':''}`}>{icon}</span>{label}</button>)}</div></nav>
 
-    {filtersOpen&&<div className="fixed inset-0 z-40"><button aria-label="Close filters" className="absolute inset-0 bg-black/65" onClick={()=>setFiltersOpen(false)}/><aside role="dialog" aria-modal="true" aria-label="Transaction filters" className="absolute inset-y-0 right-0 flex w-full max-w-sm flex-col border-l border-neutral-800 bg-neutral-950 shadow-2xl"><div className="flex items-center justify-between border-b border-neutral-800 p-4"><div className="flex items-center gap-3"><button onClick={()=>setFiltersOpen(false)} aria-label="Close filters" className="rounded-xl p-2 hover:bg-neutral-800"><ArrowLeft size={19}/></button><h2 className="text-lg font-bold">Filters</h2></div><button onClick={()=>setFilters({month:'',card_id:'',method:'',upi_app_id:'',category:'',q:filters.q,from:'',to:''})} className="text-sm font-semibold text-violet-300">Clear all</button></div><div className="flex-1 space-y-4 overflow-y-auto p-4"><Field label="Calendar month"><input type="month" className={inputClass} value={filters.month} onChange={e=>setFilters({...filters,month:e.target.value,from:'',to:''})}/></Field><Field label="Credit card"><select className={inputClass} value={filters.card_id} onChange={e=>setFilters({...filters,card_id:e.target.value})}><option value="">All cards</option>{cards.map(c=><option key={c.id} value={c.id}>{c.name} · {c.bank_name}</option>)}</select></Field><Field label="Payment method"><select className={inputClass} value={filters.method} onChange={e=>setFilters({...filters,method:e.target.value})}><option value="">All methods</option><option value="upi">UPI</option><option value="online">Online</option><option value="swipe">Swipe</option></select></Field><Field label="UPI application"><select className={inputClass} value={filters.upi_app_id} onChange={e=>setFilters({...filters,upi_app_id:e.target.value})}><option value="">All applications</option>{apps.map(a=><option key={a.id} value={a.id}>{a.name}{!a.active?' (inactive)':''}</option>)}</select></Field><Field label="Category"><select className={inputClass} value={filters.category} onChange={e=>setFilters({...filters,category:e.target.value})}><option value="">All categories</option>{[...new Set(txns.map(t=>t.category||'').filter(Boolean))].sort().map(c=><option key={c} value={c}>{c}</option>)}</select></Field><div className="grid grid-cols-2 gap-3"><Field label="From date"><input type="date" className={inputClass} value={filters.from} onChange={e=>setFilters({...filters,month:'',from:e.target.value})}/></Field><Field label="To date"><input type="date" className={inputClass} value={filters.to} onChange={e=>setFilters({...filters,month:'',to:e.target.value})}/></Field></div><div className="rounded-2xl bg-neutral-900 p-3 text-xs leading-5 text-neutral-500">All Transactions stays grouped by transaction calendar month. A card's detail screen uses that card's settlement-date billing cycles.</div></div><div className="border-t border-neutral-800 p-4"><Button className="w-full" onClick={()=>setFiltersOpen(false)}>Apply filters ({shownTxns.length})</Button></div></aside></div>}
+    {filtersOpen&&<div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/65 p-3 backdrop-blur-sm sm:items-center sm:p-5" onMouseDown={event=>{if(event.target===event.currentTarget)setFiltersOpen(false)}}><section role="dialog" aria-modal="true" aria-label="Transaction filters" className="flex max-h-[min(86dvh,760px)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-neutral-700 bg-neutral-950 shadow-2xl"><div className="flex items-center justify-between border-b border-neutral-800 p-4"><div className="flex items-center gap-3"><button onClick={()=>setFiltersOpen(false)} aria-label="Close filters" className="rounded-xl p-2 hover:bg-neutral-800"><ArrowLeft size={19}/></button><h2 className="text-lg font-bold">Filters</h2></div><button onClick={()=>setFilters({month:'',card_id:'',method:'',upi_app_id:'',category:'',q:filters.q,from:'',to:''})} className="filter-clear-all text-sm font-semibold">Clear all</button></div><div className="flex-1 space-y-4 overflow-y-auto p-4"><Field label="Calendar month"><input type="month" className={inputClass} value={filters.month} onChange={e=>setFilters({...filters,month:e.target.value,from:'',to:''})}/></Field><Field label="Credit card"><select className={inputClass} value={filters.card_id} onChange={e=>setFilters({...filters,card_id:e.target.value})}><option value="">All cards</option>{cards.map(c=><option key={c.id} value={c.id}>{c.name} · {c.bank_name}</option>)}</select></Field><Field label="Payment method"><select className={inputClass} value={filters.method} onChange={e=>setFilters({...filters,method:e.target.value})}><option value="">All methods</option><option value="upi">UPI</option><option value="online">Online</option><option value="swipe">Swipe</option></select></Field><Field label="UPI application"><select className={inputClass} value={filters.upi_app_id} onChange={e=>setFilters({...filters,upi_app_id:e.target.value})}><option value="">All applications</option>{apps.map(a=><option key={a.id} value={a.id}>{a.name}{!a.active?' (inactive)':''}</option>)}</select></Field><Field label="Category"><select className={inputClass} value={filters.category} onChange={e=>setFilters({...filters,category:e.target.value})}><option value="">All categories</option>{[...new Set(txns.map(t=>t.category||'').filter(Boolean))].sort().map(c=><option key={c} value={c}>{c}</option>)}</select></Field><div className="grid grid-cols-2 gap-3"><Field label="From date"><input type="date" className={inputClass} value={filters.from} onChange={e=>setFilters({...filters,month:'',from:e.target.value})}/></Field><Field label="To date"><input type="date" className={inputClass} value={filters.to} onChange={e=>setFilters({...filters,month:'',to:e.target.value})}/></Field></div><div className="rounded-2xl bg-neutral-900 p-3 text-xs leading-5 text-neutral-500">All Transactions stays grouped by transaction calendar month. A card's detail screen uses that card's settlement-date billing cycles.</div></div><div className="border-t border-neutral-800 p-4"><Button className="w-full" onClick={()=>setFiltersOpen(false)}>Apply filters ({shownTxns.length})</Button></div></section></div>}
 
     {toast&&<Toast toast={toast} onClose={()=>setToast(null)}/>}
   </div>;
@@ -890,31 +939,43 @@ function PaymentForm({initial,cards,defaultCard,busy,onClose,onSave,page=false}:
  const [v,setV]=useState({card_id:String(initial?.card_id||defaultCard?.id||cards[0]?.id||''),amount:initial?minorToRupees(initial.amount_minor):'',paid_at:initial?dateTimeLocal(initial.paid_at):dateTimeLocal(),reference:initial?.reference||'',notes:initial?.notes||''});const update=(k:string,x:any)=>setV(p=>({...p,[k]:x}));
  return <Modal title={initial?'Edit bill payment':'Record bill payment'} onClose={onClose} inline={page}><form className="space-y-4" onSubmit={e=>{e.preventDefault();onSave({...(initial?{id:initial.id}:{}),card_id:Number(v.card_id),amount_minor:rupeesToMinor(v.amount),paid_at:toSqlDateTime(v.paid_at),reference:v.reference,notes:v.notes})}}><Field label="Credit card" required><select className={inputClass} value={v.card_id} required onChange={e=>update('card_id',e.target.value)}>{cards.map(c=><option key={c.id} value={c.id}>{c.name} · {c.bank_name}</option>)}</select></Field><Field label="Payment amount (₹)" required><input type="number" min="0.01" step="0.01" inputMode="decimal" required className={`${inputClass} text-xl font-bold`} value={v.amount} onChange={e=>update('amount',e.target.value)} placeholder="0.00"/></Field><Field label="Payment date and time" required><input type="datetime-local" required className={inputClass} value={v.paid_at} onChange={e=>update('paid_at',e.target.value)}/></Field><Field label="Reference (optional)"><input className={inputClass} value={v.reference} onChange={e=>update('reference',e.target.value)} placeholder="Bank reference / UTR"/></Field><Field label="Notes (optional)"><input className={inputClass} value={v.notes} onChange={e=>update('notes',e.target.value)} placeholder="Payment details"/></Field><p className="rounded-2xl bg-amber-950/60 p-3 text-xs leading-5 text-amber-200">Payment is allocated to oldest outstanding statements first. Bill payments reduce dues; they do not increase expense totals.</p><div className="flex gap-2"><Button type="submit" disabled={busy||!cards.length} className="flex-1">{busy?'Saving…':initial?'Save changes':'Record payment'}</Button><Button variant="secondary" onClick={onClose}>Cancel</Button></div></form></Modal>;
 }
-function TxnRow({txn,card,to,onNavigate,stripeIndex=0}:{txn:Txn;card?:Card;to:string;onNavigate?:()=>void;stripeIndex?:number}) {
- void card;
- const method=txn.payment_method==='upi'?'UPI':txn.payment_method==='online'?'Online':'Swipe';
- const date=new Date(`${txn.txn_at.slice(0,10)}T12:00:00`);
- const dateDay=date.toLocaleDateString('en-IN',{day:'2-digit'});
- const dateMonth=date.toLocaleDateString('en-IN',{month:'short'}).toUpperCase();
- const time=new Date(txn.txn_at.replace(' ','T')).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
- return <ModalLink to={to} onClick={onNavigate} className={`txn-row ${stripeIndex % 2 === 1 ? "txn-row-even" : "txn-row-odd"} flex w-full items-center gap-2 border-b border-neutral-800 px-2.5 py-2 text-left last:border-b-0 hover:bg-neutral-800/50`}>
-   <div className="txn-date-badge flex h-[42px] w-[42px] shrink-0 flex-col items-center justify-center rounded-lg">
-     <span className="text-lg font-bold leading-5 tabular-nums">{dateDay}</span><span className="text-[10px] font-semibold leading-3 tracking-wide">{dateMonth}</span>
-   </div>
-   <div className="min-w-0 flex-1">
-     <div className="flex min-w-0 items-center justify-between gap-2">
-       <span className="min-w-0 truncate text-[13px] font-semibold text-neutral-100">{txn.particular}</span>
-       <span className="shrink-0 text-[13px] font-bold tabular-nums text-neutral-100">{money(txn.amount_minor)}</span>
-     </div>
-     <div className="txn-meta-divider my-1 h-px w-full"/>
-     <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] leading-4 text-neutral-400">
-       <span>{time}</span><span aria-hidden="true">·</span><span className="max-w-[9rem] truncate">{txn.card_name}</span>
-       <span className="txn-method-label rounded px-1 py-px font-medium">{method}</span>
-       {txn.payment_method==='upi'&&txn.upi_app_name&&<span className="max-w-[5rem] truncate">{txn.upi_app_name}</span>}
-       {txn.has_attachment===1&&<Paperclip size={11} className="shrink-0" aria-label="Attachment"/>}
-     </div>
-   </div>
- </ModalLink>;
+function TxnRow({txn,card,to,onNavigate,stripeIndex=0,detailsMode='modal',onEditTxn,onDeleteTxn,onCopyTxn,onViewTxn}:{txn:Txn;card?:Card;to:string;onNavigate?:()=>void;stripeIndex?:number;detailsMode?:TransactionDetailsMode;onEditTxn?:(txn:Txn)=>void;onDeleteTxn?:(txn:Txn)=>void;onCopyTxn?:(txn:Txn)=>void;onViewTxn?:(txn:Txn)=>void}) {
+  void card;
+  const [menu, setMenu] = useState<{x:number;y:number}|null>(null);
+  const pressTimer = useRef<number|undefined>(undefined);
+  const longPressed = useRef(false);
+  const rowRef = useRef<HTMLAnchorElement>(null);
+  const method=txn.payment_method==='upi'?'UPI':txn.payment_method==='online'?'Online':'Swipe';
+  const date=new Date(`${txn.txn_at.slice(0,10)}T12:00:00`);
+  const dateDay=date.toLocaleDateString('en-IN',{day:'2-digit'});
+  const dateMonth=date.toLocaleDateString('en-IN',{month:'short'}).toUpperCase();
+  const time=new Date(txn.txn_at.replace(' ','T')).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+  const openMenu = (x:number,y:number) => setMenu({x:Math.max(8,Math.min(x,window.innerWidth-224)),y:Math.max(8,Math.min(y,window.innerHeight-250))});
+  const clearPress = () => { if(pressTimer.current!==undefined) window.clearTimeout(pressTimer.current); pressTimer.current=undefined; };
+  useEffect(() => {
+    if(!menu) return;
+    const close=(event:PointerEvent)=>{const target=event.target as HTMLElement|null;if(!target?.closest('[data-txn-context-menu]'))setMenu(null);};
+    const key=(event:KeyboardEvent)=>{if(event.key==='Escape')setMenu(null);};
+    window.addEventListener('pointerdown',close);window.addEventListener('keydown',key);
+    return()=>{window.removeEventListener('pointerdown',close);window.removeEventListener('keydown',key);};
+  },[menu]);
+  const copy = () => { onCopyTxn?.(txn); setMenu(null); };
+  return <>
+    <div className="relative">
+    <ModalLink to={to} modal={detailsMode !== 'full-page'} onClick={event=>{if(longPressed.current){event.preventDefault();longPressed.current=false;return;}onNavigate?.();}} onContextMenu={event=>{event.preventDefault();openMenu(event.clientX,event.clientY);}} onTouchStart={event=>{longPressed.current=false;const touch=event.touches[0];const x=touch.clientX,y=touch.clientY;clearPress();pressTimer.current=window.setTimeout(()=>{longPressed.current=true;openMenu(x,y);},520);}} onTouchMove={clearPress} onTouchEnd={clearPress} className={`txn-row ${stripeIndex % 2 === 1 ? "txn-row-even" : "txn-row-odd"} flex w-full items-center gap-2 border-b border-neutral-800 px-2.5 py-2 pr-10 text-left last:border-b-0 hover:bg-neutral-800/50`}>
+      <div className="txn-date-badge flex h-[42px] w-[42px] shrink-0 flex-col items-center justify-center rounded-lg"><span className="text-lg font-bold leading-5 tabular-nums">{dateDay}</span><span className="text-[10px] font-semibold leading-3 tracking-wide">{dateMonth}</span></div>
+      <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center justify-between gap-2"><span className="min-w-0 truncate text-[13px] font-semibold text-neutral-100">{txn.particular}</span><span className="shrink-0 text-[13px] font-bold tabular-nums text-neutral-100">{money(txn.amount_minor)}</span></div><div className="txn-meta-divider my-1 h-px w-full"/><div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] leading-4 text-neutral-400"><span>{time}</span><span aria-hidden="true">·</span><span className="max-w-[9rem] truncate">{txn.card_name}</span><span className="txn-method-label rounded px-1 py-px font-medium">{method}</span>{txn.payment_method==='upi'&&txn.upi_app_name&&<span className="max-w-[5rem] truncate">{txn.upi_app_name}</span>}{txn.has_attachment===1&&<Paperclip size={11} className="shrink-0" aria-label="Attachment"/>}</div></div>
+    </ModalLink>
+    <button type="button" aria-label={`More actions for ${txn.particular}`} title="More actions" onClick={event=>{event.preventDefault();event.stopPropagation();const rect=(event.currentTarget as HTMLButtonElement).getBoundingClientRect();openMenu(rect.right-8,rect.bottom+4);}} className="txn-context-trigger absolute right-1 top-1/2 flex h-9 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-700 hover:text-neutral-100 focus-visible:text-neutral-100"><MoreHorizontal size={19}/></button>
+    </div>
+    {menu&&createPortal(<div data-txn-context-menu role="menu" aria-label="Transaction actions" style={{position:'fixed',left:menu.x,top:menu.y,zIndex:150}} className="txn-context-menu w-56 overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 p-1.5 shadow-2xl shadow-black/50">
+      <button role="menuitem" type="button" onClick={()=>{setMenu(null);onViewTxn?.(txn);}} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-neutral-200 hover:bg-neutral-800"><Eye size={16}/>View details</button>
+      <button role="menuitem" type="button" onClick={()=>{setMenu(null);onEditTxn?.(txn);}} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-neutral-200 hover:bg-neutral-800"><Pencil size={16}/>Edit transaction</button>
+      <button role="menuitem" type="button" onClick={copy} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-neutral-200 hover:bg-neutral-800"><Download size={16}/>Copy details</button>
+      <div className="my-1 border-t border-neutral-800"/>
+      <button role="menuitem" type="button" onClick={()=>{setMenu(null);onDeleteTxn?.(txn);}} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-red-300 hover:bg-red-950/50"><Trash2 size={16}/>Delete transaction</button>
+    </div>,document.body)}
+  </>;
 }
 
 

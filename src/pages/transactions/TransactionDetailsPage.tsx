@@ -1,7 +1,7 @@
 import ModalLink from '../../routes/ModalLink';
 import { useAppRouteContext } from '../../routes/route-context';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Pencil, Trash2, X } from 'lucide-react';
 import { type AppRouteContext } from '../../routes/route-context';
 
 const API = `${(import.meta.env.BASE_URL || '/').replace(/\/$/, '')}/api`;
@@ -35,27 +35,20 @@ export default function TransactionDetailsPage() {
     <header className="route-modal-header flex shrink-0 items-center justify-between border-b border-neutral-800 px-5 py-4">
       <h2 className="text-lg font-bold">Transaction details</h2>
       <div className="flex items-center gap-1">
-        <details className="relative">
-          <summary aria-label="Transaction actions" className="flex cursor-pointer list-none items-center justify-center rounded-full p-2 text-neutral-400 hover:bg-neutral-800 [&::-webkit-details-marker]:hidden">
-            <MoreHorizontal size={22}/>
-          </summary>
-          <div className="absolute right-0 top-full z-50 mt-2 min-w-44 overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 py-1 shadow-xl">
-            <button
-              type="button"
-              onClick={(event) => {
-                const menu = event.currentTarget.closest('details');
-                if (menu) menu.open = false;
-                if (window.confirm('Delete this transaction? Locked statements must be unlocked first.')) {
-                  deleteTransaction(txn);
-                  close();
-                }
-              }}
-              className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium text-red-400 hover:bg-red-950/40"
-            >
-              <Trash2 size={16}/> Delete transaction
-            </button>
-          </div>
-        </details>
+        <button
+          type="button"
+          aria-label="Delete transaction"
+          title="Delete transaction"
+          onClick={() => {
+            if (window.confirm('Delete this transaction? This action cannot be undone. If it belongs to a locked statement, unlock the statement first.')) {
+              deleteTransaction(txn);
+              close();
+            }
+          }}
+          className="flex items-center justify-center rounded-full p-2 text-red-400 hover:bg-red-950/40 hover:text-red-300"
+        >
+          <Trash2 size={21}/>
+        </button>
         <button type="button" onClick={close} aria-label="Close transaction details" className="rounded-full p-2 text-neutral-400 hover:bg-neutral-800"><X size={21}/></button>
       </div>
     </header>
@@ -70,7 +63,7 @@ export default function TransactionDetailsPage() {
       <button type="button" onClick={close} className="inline-flex min-h-12 min-w-32 items-center justify-center gap-2 rounded-2xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-sm font-semibold text-neutral-200 hover:bg-neutral-700">
         <ArrowLeft size={16}/> Back
       </button>
-      <ModalLink to={`/transactions/${txn.id}/edit`} className="inline-flex min-h-12 min-w-40 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white">
+      <ModalLink to={`/transactions/${txn.id}/edit`} modal={(localStorage.getItem('ccm-transaction-edit-mode') || 'modal') !== 'full-page'} state={{ returnTo: `${location.pathname}${location.search}${location.hash}` }} className="inline-flex min-h-12 min-w-40 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white">
         <Pencil size={16}/> Edit transaction
       </ModalLink>
     </div>

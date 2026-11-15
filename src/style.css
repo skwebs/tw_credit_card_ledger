@@ -928,3 +928,17 @@ select:focus-visible {
     border-radius: 1.5rem !important;
   }
 }
+
+/* Transaction context actions: desktop right-click, mobile long-press and the
+   explicit overflow control share the same accessible action menu. */
+.txn-context-trigger{opacity:.72;transition:opacity .15s ease,background-color .15s ease,color .15s ease}
+@media(hover:hover) and (pointer:fine){.txn-context-trigger{opacity:0}.txn-row:hover .txn-context-trigger,.txn-row:focus-within .txn-context-trigger{opacity:1}}
+.txn-context-menu{animation:txn-context-enter .12s ease-out both;transform-origin:top left}
+@keyframes txn-context-enter{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(prefers-reduced-motion:reduce){.txn-context-menu{animation:none}}
+
+/* Transaction filter Clear all action: accessible contrast in both themes. */
+.filter-clear-all{color:#c4b5fd}
+.filter-clear-all:hover{color:#ddd6fe}
+:root[data-theme="light"] .filter-clear-all{color:#6d28d9}
+:root[data-theme="light"] .filter-clear-all:hover{color:#5b21b6}
