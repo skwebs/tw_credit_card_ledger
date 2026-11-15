@@ -260,10 +260,14 @@ function AppShell() {
   const [transactionDetailsMode,setTransactionDetailsMode]=useState<TransactionDetailsMode>(()=>{try{const saved=localStorage.getItem('ccm-transaction-details-mode');return saved==='context-aware'||saved==='full-page'?saved:'modal'}catch{return 'modal'}});
   const [transactionEditMode,setTransactionEditMode]=useState<TransactionEditMode>(()=>{try{return localStorage.getItem('ccm-transaction-edit-mode')==='full-page'?'full-page':'modal'}catch{return 'modal'}});
   const explicitBackgroundLocation = (location.state as any)?.backgroundLocation as any;
-  // Direct transaction URLs have no router background. In Always modal mode,
-  // render the transactions list underneath as a predictable fallback.
+  // Direct transaction URLs have no router background. When the corresponding
+  // display preference is modal, render the transactions list underneath.
   const isDirectTransactionDetails = !explicitBackgroundLocation && /^\/transactions\/\d+$/.test(location.pathname);
-  const backgroundLocation = explicitBackgroundLocation || (transactionDetailsMode === 'modal' && isDirectTransactionDetails
+  const isDirectTransactionEdit = !explicitBackgroundLocation && /^\/transactions\/\d+\/edit$/.test(location.pathname);
+  const shouldOpenDirectTransactionAsModal =
+    (transactionDetailsMode === 'modal' && isDirectTransactionDetails) ||
+    (transactionEditMode === 'modal' && isDirectTransactionEdit);
+  const backgroundLocation = explicitBackgroundLocation || (shouldOpenDirectTransactionAsModal
     ? { ...location, pathname: '/transactions', search: '', hash: '', state: null }
     : null);
   const isSyntheticTransactionBackground = !explicitBackgroundLocation && Boolean(backgroundLocation);
